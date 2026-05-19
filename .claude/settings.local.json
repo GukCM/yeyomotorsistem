@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(node --check \"c:/Users/gceba/OneDrive/Escritorio/old v/yeyosistema_v2/yeyosistema/src/renderer.js\")",
+      "Bash(git -C \"c:/Users/gceba/OneDrive/Escritorio/old v/yeyosistema_v2/yeyosistema\" add .gitignore assets/ db.js main.js package.json package-lock.json src/ README.txt)",
+      "Bash(git -C 'c:/Users/gceba/OneDrive/Escritorio/old v/yeyosistema_v2/yeyosistema' commit -m ' *)",
+      "Bash(ssh -T git@github.com)",
+      "Bash(ssh-keygen -t ed25519 -C gusavocod@gmail.com -f __TRACKED_VAR__/.ssh/id_ed25519 -N '')",
+      "Bash(git -C \"c:/Users/gceba/OneDrive/Escritorio/old v/yeyosistema_v2/yeyosistema\" remote add origin git@github.com:GukCM/yeyomotorsistem.git)",
+      "Bash(git -C \"c:/Users/gceba/OneDrive/Escritorio/old v/yeyosistema_v2/yeyosistema\" push -u origin master)",
+      "Bash(git -C \"c:/Users/gceba/OneDrive/Escritorio/old v/yeyosistema_v2/yeyosistema\" push)"
+    ]
+  }
+}
