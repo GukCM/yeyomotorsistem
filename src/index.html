@@ -91,7 +91,6 @@ textarea{resize:vertical;min-height:90px;}
 select option{background:var(--bs);}
 
 /* phone max indicator */
-.phone-hint{font-size:11px;color:var(--gray);margin-top:2px;}
 
 /* photo upload */
 .photo-drop{
@@ -354,17 +353,16 @@ table.quote-tbl .total-cell{font-family:var(--fd);font-size:17px;font-weight:900
         </div>
         <div class="form-group">
           <label>Teléfono <span class="req">*</span></label>
-          <input type="tel" inputmode="numeric" id="f-telefono" placeholder="3121234567" maxlength="10" oninput="this.value=this.value.replace(/\D/g,\'\').slice(0,10);document.getElementById(\'phone-count\').textContent=this.value.length+\' / 10 dígitos\';document.getElementById('phone-count').style.color=this.value.length===10?'#1db954':'var(--gray)'">
-          <span class="phone-hint" id="phone-count">0 / 10 dígitos</span>
+          <input type="tel" inputmode="numeric" id="f-telefono" placeholder="3121234567" maxlength="10" oninput="this.value=this.value.replace(/D/g,'').slice(0,10)" onkeydown="if(event.key.length===1&&!/[0-9]/.test(event.key)&&!event.ctrlKey&&!event.metaKey)event.preventDefault()">
         </div>
       </div>
       <div class="form-grid three" style="margin-top:1.25rem;">
         <div class="form-group"><label>Moto / Marca <span class="req">*</span></label><input type="text" id="f-moto" placeholder="Honda, Yamaha..."></div>
         <div class="form-group"><label>Modelo <span class="req">*</span></label><input type="text" id="f-modelo" placeholder="CBR 150, FZ 250..."></div>
-        <div class="form-group"><label>Color <span class="req">*</span></label><input type="text" id="f-color" placeholder="Negro mate" oninput="this.value=this.value.replace(/[^A-Za-záéíóúüñÁÉÍÓÚÜÑ /-]/g,'')"></div>
+        <div class="form-group"><label>Color <span class="req">*</span></label><input type="text" id="f-color" placeholder="Negro mate" oninput="this.value=this.value.replace(/[^A-Za-záéíóúüñÁÉÍÓÚÜÑ /-]/g,'')" onkeydown="if(event.key.length===1&&!/[A-Za-záéíóúüñÁÉÍÓÚÜÑ /-]/.test(event.key)&&!event.ctrlKey&&!event.metaKey)event.preventDefault()"></div>
       </div>
       <div class="form-grid" style="margin-top:1.25rem;">
-        <div class="form-group"><label>Placas <span class="req">*</span></label><input type="text" id="f-placas" placeholder="COL-1234" oninput="this.value=this.value.toUpperCase().replace(/[^A-Z0-9-]/g,'')"></div>
+        <div class="form-group"><label>Placas <span class="req">*</span></label><input type="text" id="f-placas" placeholder="COL-1234" oninput="this.value=this.value.toUpperCase().replace(/[^A-Z0-9-]/g,'')" onkeydown="if(event.key.length===1&&!/[A-Za-z0-9-]/.test(event.key)&&!event.ctrlKey&&!event.metaKey)event.preventDefault()"></div>
         <div class="form-group"><label>Día de Ingreso <span class="req">*</span></label><input type="date" id="f-ingreso"></div>
       </div>
       <div class="form-group form-full" style="margin-top:1.25rem;">
@@ -533,15 +531,15 @@ table.quote-tbl .total-cell{font-family:var(--fd);font-size:17px;font-weight:900
       </div>
       <div class="form-grid" style="gap:1rem;margin-bottom:1rem;">
         <div class="form-group"><label>Nombre <span class="req">*</span></label><input type="text" id="edit-nombre"></div>
-        <div class="form-group"><label>Teléfono <span class="req">*</span></label><input type="tel" inputmode="numeric" id="edit-telefono" maxlength="10" oninput="this.value=this.value.replace(/\D/g,\'\').slice(0,10)"></div>
+        <div class="form-group"><label>Teléfono <span class="req">*</span></label><input type="tel" inputmode="numeric" id="edit-telefono" maxlength="10" oninput="this.value=this.value.replace(/\D/g,\'\').slice(0,10)" onkeydown="if(event.key.length===1&&!/[0-9]/.test(event.key)&&!event.ctrlKey&&!event.metaKey)event.preventDefault()"></div>
       </div>
       <div class="form-grid three" style="gap:1rem;margin-bottom:1rem;">
         <div class="form-group"><label>Moto / Marca <span class="req">*</span></label><input type="text" id="edit-moto"></div>
         <div class="form-group"><label>Modelo <span class="req">*</span></label><input type="text" id="edit-modelo"></div>
-        <div class="form-group"><label>Color <span class="req">*</span></label><input type="text" id="edit-color" oninput="this.value=this.value.replace(/[^A-Za-záéíóúüñÁÉÍÓÚÜÑ /-]/g,'')"></div>
+        <div class="form-group"><label>Color <span class="req">*</span></label><input type="text" id="edit-color" oninput="this.value=this.value.replace(/[^A-Za-záéíóúüñÁÉÍÓÚÜÑ /-]/g,'')" onkeydown="if(event.key.length===1&&!/[A-Za-záéíóúüñÁÉÍÓÚÜÑ /-]/.test(event.key)&&!event.ctrlKey&&!event.metaKey)event.preventDefault()"></div>
       </div>
       <div class="form-grid" style="gap:1rem;margin-bottom:1rem;">
-        <div class="form-group"><label>Placas <span class="req">*</span></label><input type="text" id="edit-placas" oninput="this.value=this.value.toUpperCase().replace(/[^A-Z0-9-]/g,'')"></div>
+        <div class="form-group"><label>Placas <span class="req">*</span></label><input type="text" id="edit-placas" oninput="this.value=this.value.toUpperCase().replace(/[^A-Z0-9-]/g,'')" onkeydown="if(event.key.length===1&&!/[A-Za-z0-9-]/.test(event.key)&&!event.ctrlKey&&!event.metaKey)event.preventDefault()"></div>
         <div class="form-group"><label>Status</label><select id="edit-status"><option value="ingresado">Ingresado</option><option value="proceso">En Proceso</option><option value="finalizado">Finalizado</option></select></div>
       </div>
       <div class="form-group" style="margin-bottom:1rem;"><label>Detalles / Falla <span class="req">*</span></label><textarea id="edit-detalles" style="min-height:80px;"></textarea></div>

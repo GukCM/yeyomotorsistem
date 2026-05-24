@@ -160,9 +160,6 @@ function resetForm() {
   document.getElementById('f-ingreso').valueAsDate = new Date();
   document.getElementById('f-status').value = 'ingresado';
   document.getElementById('photo-previews').innerHTML = '';
-  const _pc = document.getElementById('phone-count');
-  _pc.textContent = '0 / 10 dígitos';
-  _pc.style.color = '';
   formServicios = [];
   document.getElementById('f-servicios-list').innerHTML = '';
   photoDataUrls = [];
