@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, dialog, shell } = require('electron');
+﻿const { app, BrowserWindow, ipcMain, dialog, shell } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { initDB, getDB } = require('./db');
@@ -49,10 +49,16 @@ app.on('window-all-closed', () => {
 ipcMain.handle('clientes:getAll', () => {
   const db = getDB();
   const clientes = db.prepare('SELECT * FROM clientes ORDER BY created_at DESC').all();
+  const allFotos = db.prepare('SELECT cliente_id, data FROM fotos ORDER BY cliente_id, orden').all();
+  const fotosMap = {};
+  for (const f of allFotos) {
+    if (!fotosMap[f.cliente_id]) fotosMap[f.cliente_id] = [];
+    fotosMap[f.cliente_id].push(f.data);
+  }
   return clientes.map(c => ({
     ...c,
     servicios: JSON.parse(c.servicios || '[]'),
-    fotos: getFotos(c.id)
+    fotos: fotosMap[c.id] || []
   }));
 });
 
@@ -111,13 +117,15 @@ ipcMain.handle('clientes:delete', (_, id) => {
 
 ipcMain.handle('clientes:resetAll', () => {
   const db = getDB();
-  db.prepare('DELETE FROM fotos').run();
-  db.prepare('DELETE FROM clientes').run();
-  db.prepare('DELETE FROM cotizaciones').run();
-  db.prepare('DELETE FROM cotizacion_rows').run();
-  db.prepare('DELETE FROM cotizacion_piezas').run();
-  db.prepare("UPDATE counters SET value=0 WHERE name='cliente'").run();
-  db.prepare("UPDATE counters SET value=0 WHERE name='cotizacion'").run();
+  db.transaction(() => {
+    db.prepare('DELETE FROM fotos').run();
+    db.prepare('DELETE FROM clientes').run();
+    db.prepare('DELETE FROM cotizaciones').run();
+    db.prepare('DELETE FROM cotizacion_rows').run();
+    db.prepare('DELETE FROM cotizacion_piezas').run();
+    db.prepare("UPDATE counters SET value=0 WHERE name='cliente'").run();
+    db.prepare("UPDATE counters SET value=0 WHERE name='cotizacion'").run();
+  })();
   return { ok: true };
 });
 
@@ -142,10 +150,11 @@ ipcMain.handle('fotos:upload', async (_, clienteId) => {
     filters: [{ name: 'Imágenes', extensions: ['jpg', 'jpeg', 'png', 'gif', 'webp'] }]
   });
   if (result.canceled) return [];
+  const mimeMap = { png: 'image/png', gif: 'image/gif', webp: 'image/webp' };
   const base64s = result.filePaths.map(fp => {
     const buf = fs.readFileSync(fp);
     const ext = path.extname(fp).slice(1).toLowerCase();
-    const mime = ext === 'png' ? 'image/png' : ext === 'gif' ? 'image/gif' : 'image/jpeg';
+    const mime = mimeMap[ext] || 'image/jpeg';
     return `data:${mime};base64,${buf.toString('base64')}`;
   });
   return base64s;
@@ -181,30 +190,30 @@ ipcMain.handle('cotizaciones:save', (_, cot) => {
     return s + mo + pz;
   }, 0);
 
-  // Upsert cotizacion
-  const existing = db.prepare('SELECT id FROM cotizaciones WHERE titulo=?').get(cot.titulo);
-  let cotId;
-  if (existing) {
-    db.prepare(`UPDATE cotizaciones SET cliente_id=?, cliente_nombre=?, cliente_telefono=?, fecha=?, total=? WHERE titulo=?`)
-      .run(cot.clienteId || null, cot.clienteNombre || 'Sin cliente', cot.clienteTelefono || '', cot.fecha, grand, cot.titulo);
-    cotId = existing.id;
-    db.prepare('DELETE FROM cotizacion_piezas WHERE row_id IN (SELECT id FROM cotizacion_rows WHERE cotizacion_id=?)').run(cotId);
-    db.prepare('DELETE FROM cotizacion_rows WHERE cotizacion_id=?').run(cotId);
-  } else {
-    const info = db.prepare(`INSERT INTO cotizaciones (titulo, cliente_id, cliente_nombre, cliente_telefono, fecha, total) VALUES (?,?,?,?,?,?)`)
-      .run(cot.titulo, cot.clienteId || null, cot.clienteNombre || 'Sin cliente', cot.clienteTelefono || '', cot.fecha, grand);
-    cotId = info.lastInsertRowid;
-  }
-
-  // Insert rows and pieces
   const rowStmt = db.prepare('INSERT INTO cotizacion_rows (cotizacion_id, servicio, mano_obra, orden) VALUES (?,?,?,?)');
   const pieceStmt = db.prepare('INSERT INTO cotizacion_piezas (row_id, nombre, cant, precio, orden) VALUES (?,?,?,?,?)');
-  (cot.rows || []).forEach((r, i) => {
-    const rowInfo = rowStmt.run(cotId, r.servicio || '', parseFloat(r.manoObra) || 0, i);
-    (r.pieces || []).forEach((p, j) => {
-      pieceStmt.run(rowInfo.lastInsertRowid, p.nombre || '', parseFloat(p.cant) || 1, parseFloat(p.precio) || 0, j);
+
+  db.transaction(() => {
+    const existing = db.prepare('SELECT id FROM cotizaciones WHERE titulo=?').get(cot.titulo);
+    let cotId;
+    if (existing) {
+      db.prepare('UPDATE cotizaciones SET cliente_id=?, cliente_nombre=?, cliente_telefono=?, fecha=?, total=? WHERE titulo=?')
+        .run(cot.clienteId || null, cot.clienteNombre || 'Sin cliente', cot.clienteTelefono || '', cot.fecha, grand, cot.titulo);
+      cotId = existing.id;
+      db.prepare('DELETE FROM cotizacion_piezas WHERE row_id IN (SELECT id FROM cotizacion_rows WHERE cotizacion_id=?)').run(cotId);
+      db.prepare('DELETE FROM cotizacion_rows WHERE cotizacion_id=?').run(cotId);
+    } else {
+      const info = db.prepare('INSERT INTO cotizaciones (titulo, cliente_id, cliente_nombre, cliente_telefono, fecha, total) VALUES (?,?,?,?,?,?)')
+        .run(cot.titulo, cot.clienteId || null, cot.clienteNombre || 'Sin cliente', cot.clienteTelefono || '', cot.fecha, grand);
+      cotId = info.lastInsertRowid;
+    }
+    (cot.rows || []).forEach((r, i) => {
+      const rowInfo = rowStmt.run(cotId, r.servicio || '', parseFloat(r.manoObra) || 0, i);
+      (r.pieces || []).forEach((p, j) => {
+        pieceStmt.run(rowInfo.lastInsertRowid, p.nombre || '', parseFloat(p.cant) || 1, parseFloat(p.precio) || 0, j);
+      });
     });
-  });
+  })();
   return { ok: true };
 });
 
@@ -212,9 +221,11 @@ ipcMain.handle('cotizaciones:delete', (_, titulo) => {
   const db = getDB();
   const cot = db.prepare('SELECT id FROM cotizaciones WHERE titulo=?').get(titulo);
   if (cot) {
-    db.prepare('DELETE FROM cotizacion_piezas WHERE row_id IN (SELECT id FROM cotizacion_rows WHERE cotizacion_id=?)').run(cot.id);
-    db.prepare('DELETE FROM cotizacion_rows WHERE cotizacion_id=?').run(cot.id);
-    db.prepare('DELETE FROM cotizaciones WHERE id=?').run(cot.id);
+    db.transaction(() => {
+      db.prepare('DELETE FROM cotizacion_piezas WHERE row_id IN (SELECT id FROM cotizacion_rows WHERE cotizacion_id=?)').run(cot.id);
+      db.prepare('DELETE FROM cotizacion_rows WHERE cotizacion_id=?').run(cot.id);
+      db.prepare('DELETE FROM cotizaciones WHERE id=?').run(cot.id);
+    })();
   }
   return { ok: true };
 });
@@ -238,20 +249,24 @@ ipcMain.handle('counters:nextQuote', () => {
 // ─────────────────────────────────────────────
 // IPC — EXPORT CSV
 // ─────────────────────────────────────────────
+function csvCell(val) { return '"' + String(val || '').replace(/"/g, '""') + '"'; }
+
 ipcMain.handle('export:clientesCSV', async (_, clientes) => {
   const result = await dialog.showSaveDialog(mainWindow, {
     defaultPath: 'Clientes_Yeyo_Mototaller.csv',
     filters: [{ name: 'CSV', extensions: ['csv'] }]
   });
   if (result.canceled) return { ok: false };
-  let csv = '\uFEFF';
-  csv += 'ID,NOMBRE,TELEFONO,MOTO,MODELO,COLOR,PLACAS,DIA DE INGRESO,STATUS,DETALLES\n';
-  clientes.forEach(c => {
+  const lines = ['﻿ID,NOMBRE,TELEFONO,MOTO,MODELO,COLOR,PLACAS,DIA DE INGRESO,STATUS,DETALLES'];
+  for (const c of clientes) {
     const ing = c.ingreso ? c.ingreso.split('-').reverse().join('/') : '—';
-    csv += [c.id||'', `"${c.nombre}"`, `"${c.telefono}"`, `"${c.moto}"`, `"${c.modelo}"`,
-      `"${c.color}"`, `"${c.placas}"`, ing, c.status||'', `"${(c.detalles||'').replace(/"/g,"'")}"`].join(',') + '\n';
-  });
-  fs.writeFileSync(result.filePath, csv, 'utf8');
+    lines.push([
+      c.id || '', csvCell(c.nombre), csvCell(c.telefono), csvCell(c.moto),
+      csvCell(c.modelo), csvCell(c.color), csvCell(c.placas),
+      ing, c.status || '', csvCell(c.detalles)
+    ].join(','));
+  }
+  fs.writeFileSync(result.filePath, lines.join('\n'), 'utf8');
   shell.showItemInFolder(result.filePath);
   return { ok: true };
 });

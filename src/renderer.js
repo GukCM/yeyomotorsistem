@@ -11,6 +11,7 @@ let photoDataUrls = [];
 let formServicios = [];
 let editServicios = [];
 let editingClientId = null;
+let _rowIdSeq = 0;
 
 const statusLabel = { ingresado: 'Ingresado', proceso: 'En Proceso', finalizado: 'Finalizado' };
 const statusClass  = { ingresado: 's-ingresado', proceso: 's-proceso', finalizado: 's-finalizado' };
@@ -133,7 +134,7 @@ async function saveClient() {
     if (!document.getElementById(req[i]).value.trim()) { showToast('⚠ ' + labels[i] + ' es requerido'); return; }
   }
   const tel = document.getElementById('f-telefono').value.trim();
-  if (tel.length !== 10) { showToast('⚠ El teléfono debe tener 10 dígitos'); return; }
+  if (!/^\d{10}$/.test(tel)) { showToast('⚠ El teléfono debe tener 10 dígitos numéricos'); return; }
 
   const result = await window.api.saveCliente({
     nombre:   document.getElementById('f-nombre').value.trim(),
@@ -159,7 +160,9 @@ function resetForm() {
   document.getElementById('f-ingreso').valueAsDate = new Date();
   document.getElementById('f-status').value = 'ingresado';
   document.getElementById('photo-previews').innerHTML = '';
-  document.getElementById('phone-count').textContent = '0 / 10 dígitos';
+  const _pc = document.getElementById('phone-count');
+  _pc.textContent = '0 / 10 dígitos';
+  _pc.style.color = '';
   formServicios = [];
   document.getElementById('f-servicios-list').innerHTML = '';
   photoDataUrls = [];
@@ -280,7 +283,8 @@ async function changeStatus(id, newStatus) {
   const c = clients.find(x => x.id === id);
   if (!c) return;
   c.status = newStatus;
-  await window.api.updateCliente(c);
+  const { fotos: _f, ...clienteData } = c;
+  await window.api.updateCliente(clienteData);
   await loadClients();
   openDetail(id);
   renderClients();
@@ -317,7 +321,7 @@ async function saveEditClient() {
   if (!c) return;
   const tel = document.getElementById('edit-telefono').value.trim();
   if (!document.getElementById('edit-nombre').value.trim()) { showToast('⚠ Nombre requerido'); return; }
-  if (tel.length !== 10) { showToast('⚠ Teléfono debe tener 10 dígitos'); return; }
+  if (!/^\d{10}$/.test(tel)) { showToast('⚠ Teléfono debe tener 10 dígitos numéricos'); return; }
   c.nombre   = document.getElementById('edit-nombre').value.trim();
   c.telefono = tel;
   c.moto     = document.getElementById('edit-moto').value.trim();
@@ -327,7 +331,8 @@ async function saveEditClient() {
   c.detalles = document.getElementById('edit-detalles').value.trim();
   c.status   = document.getElementById('edit-status').value;
   c.servicios = [...editServicios];
-  await window.api.updateCliente(c);
+  const { fotos: _f, ...clienteData } = c;
+  await window.api.updateCliente(clienteData);
   await loadClients();
   closeEditModalDirect();
   renderClients();
@@ -363,7 +368,7 @@ async function genQuoteID() {
 }
 
 function addQuoteRow() {
-  const id = Date.now();
+  const id = ++_rowIdSeq;
   quoteRows.push({ id, servicio: '', manoObra: 0, pieces: [{ nombre: '', cant: 1, precio: 0 }] });
   renderQuoteTable();
 }
@@ -538,6 +543,7 @@ function loadQuoteToEditor(titulo) {
   document.getElementById('q-titulo').value = qt.titulo;
   document.getElementById('q-cliente').value = qt.cliente_id || '';
   quoteRows = JSON.parse(JSON.stringify(qt.rows || []));
+  _rowIdSeq = quoteRows.reduce((max, r) => Math.max(max, r.id || 0), _rowIdSeq);
   renderQuoteTable();
   switchTab('cotizacion');
   showToast('Cotización cargada en editor', 'success');
@@ -554,10 +560,7 @@ async function deleteQuote(titulo) {
 function exportSavedQuotePDF(titulo) {
   const qt = savedQuotes.find(q => q.titulo === titulo);
   if (!qt) return;
-  quoteRows = JSON.parse(JSON.stringify(qt.rows || []));
-  document.getElementById('q-titulo').value = qt.titulo;
-  document.getElementById('q-cliente').value = qt.cliente_id || '';
-  exportQuotePDF();
+  exportQuotePDF(qt.titulo, qt.cliente_id || '', JSON.parse(JSON.stringify(qt.rows || [])));
 }
 
 // ─────────────────────────────────────────────
@@ -683,13 +686,19 @@ function exportClientPDF(id) {
 // ─────────────────────────────────────────────
 // PDF EXPORT — COTIZACIÓN
 // ─────────────────────────────────────────────
-function exportQuotePDF() {
+function exportQuotePDF(overrideTitulo, overrideClienteId, overrideRows) {
   const { jsPDF } = window.jspdf;
-  const titulo = document.getElementById('q-titulo').value || 'Cotización';
-  const clienteId = document.getElementById('q-cliente').value;
+  const titulo = overrideTitulo || document.getElementById('q-titulo').value || 'Cotización';
+  const clienteId = overrideClienteId !== undefined ? overrideClienteId : document.getElementById('q-cliente').value;
+  const rows = overrideRows || quoteRows;
   const cliente = clients.find(c => c.id === clienteId);
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
   const W = 210, margin = 15;
+  const pdfFooter = () => {
+    doc.setFillColor(10, 10, 10); doc.rect(0, 285, W, 12, 'F');
+    doc.setTextColor(150, 150, 150); doc.setFontSize(8);
+    doc.text('Yeyo Moto Taller & Refaccionaria — Colima', W / 2, 292, { align: 'center' });
+  };
   doc.setFillColor(10, 10, 10); doc.rect(0, 0, W, 45, 'F');
   try { doc.addImage(LOGO_SRC, 'JPEG', margin, 5, 30, 30); } catch (e) {}
   doc.setTextColor(204, 0, 0); doc.setFont('helvetica', 'bold'); doc.setFontSize(22);
@@ -710,7 +719,7 @@ function exportQuotePDF() {
     doc.text(`${cliente.nombre} | Tel: ${cliente.telefono} | ${cliente.moto} ${cliente.modelo} | Placas: ${cliente.placas}`, margin + 20, 72);
   }
   const startY = cliente ? 80 : 72;
-  const tableData = quoteRows.map(r => {
+  const tableData = rows.map(r => {
     const piecesText = (r.pieces || []).map(p => `${p.nombre || '—'} x${p.cant || 1} @ $${(parseFloat(p.precio) || 0).toFixed(2)} = $${((parseFloat(p.cant) || 0) * (parseFloat(p.precio) || 0)).toFixed(2)}`).join('\n');
     return [r.servicio || '—', '$' + (parseFloat(r.manoObra) || 0).toFixed(2), piecesText || '—', '$' + piecesTotal(r.pieces || []).toFixed(2), '$' + rowTotal(r).toFixed(2)];
   });
@@ -723,14 +732,10 @@ function exportQuotePDF() {
     bodyStyles: { fontSize: 9, textColor: [30, 30, 30] },
     columnStyles: { 0: { cellWidth: 38 }, 1: { cellWidth: 28, halign: 'right' }, 2: { cellWidth: 60 }, 3: { cellWidth: 28, halign: 'right' }, 4: { cellWidth: 28, halign: 'right', fontStyle: 'bold' } },
     margin: { left: margin, right: margin },
-    didDrawPage: () => {
-      doc.setFillColor(10, 10, 10); doc.rect(0, 285, W, 12, 'F');
-      doc.setTextColor(150, 150, 150); doc.setFontSize(8);
-      doc.text('Yeyo Moto Taller & Refaccionaria — Colima', W / 2, 292, { align: 'center' });
-    }
+    didDrawPage: pdfFooter
   });
   const finalY = doc.lastAutoTable.finalY + 8;
-  const grand = quoteRows.reduce((s, r) => s + rowTotal(r), 0);
+  const grand = rows.reduce((s, r) => s + rowTotal(r), 0);
   doc.setFillColor(204, 0, 0); doc.rect(W - margin - 60, finalY - 5, 60, 12, 'F');
   doc.setTextColor(255, 255, 255); doc.setFont('helvetica', 'bold'); doc.setFontSize(11);
   doc.text('TOTAL: $' + grand.toFixed(2), W - margin - 3, finalY + 3, { align: 'right' });
